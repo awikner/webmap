@@ -102,8 +102,6 @@
 </head>
 <body>
     <div class="map-controls">
-        <button id="addMarker" class="btn">Add Marker</button>
-        <button id="clearMarkers" class="btn danger">Clear All</button>
         <button id="fitMarkers" class="btn">Fit to Markers</button>
     </div>
     
@@ -140,7 +138,7 @@
                 maxZoom: 19
             }).addTo(map);
             
-            // Click to add marker
+            // Click to show coordinates
             map.on('click', function(e) {
                 const lat = e.latlng.lat.toFixed(6);
                 const lng = e.latlng.lng.toFixed(6);
@@ -153,10 +151,13 @@
                 const lng = e.latlng.lng.toFixed(6);
                 document.getElementById('coordinates').textContent = `Lat: ${lat}, Lng: ${lng}`;
             });
+            
+            // Load markers from JSON
+            loadMarkersFromJSON();
         }
         
         // Add marker
-        function addMarker(lat, lng, title = 'Marker') {
+        function addMarker(lat, lng, title = 'Marker', description = '', category = 'default') {
             const marker = L.marker([lat, lng], {
                 icon: L.divIcon({
                     className: 'custom-marker',
@@ -169,14 +170,12 @@
             marker.bindPopup(`
                 <div style="text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
                     <h4 style="margin: 0 0 8px 0; color: #333;">${title}</h4>
-                    <p style="margin: 0 0 8px 0; font-size: 12px; color: #666;">
+                    <p style="margin: 0 0 8px 0; font-size: 12px; color: #666;">${description}</p>
+                    <p style="margin: 0 0 8px 0; font-size: 11px; color: #888;">
                         Lat: ${lat.toFixed(6)}<br>
                         Lng: ${lng.toFixed(6)}
                     </p>
-                    <button onclick="removeMarker(${markers.length})" 
-                            style="background: #dc3232; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">
-                        Remove
-                    </button>
+                    <p style="margin: 0; font-size: 10px; color: #999;">Category: ${category}</p>
                 </div>
             `);
             
@@ -186,22 +185,52 @@
             updateMarkerCount();
         }
         
-        // Remove marker
-        function removeMarker(index) {
-            if (index >= 0 && index < markers.length) {
-                map.removeLayer(markers[index]);
-                markers.splice(index, 1);
-                markerCount--;
-                updateMarkerCount();
+        // Load markers from JSON file
+        async function loadMarkersFromJSON() {
+            try {
+                const response = await fetch('markers.json');
+                const data = await response.json();
+                
+                // Clear existing markers
+                markers.forEach(marker => map.removeLayer(marker));
+                markers = [];
+                markerCount = 0;
+                
+                // Add markers from JSON data
+                data.markers.forEach(markerData => {
+                    addMarker(
+                        markerData.lat,
+                        markerData.lng,
+                        markerData.title,
+                        markerData.description,
+                        markerData.category
+                    );
+                });
+                
+                // Fit map to show all markers
+                if (markers.length > 0) {
+                    fitMapToMarkers();
+                }
+                
+                console.log(`Loaded ${markers.length} markers from JSON file`);
+            } catch (error) {
+                console.error('Error loading markers from JSON:', error);
+                // Fallback to sample markers if JSON fails to load
+                addSampleMarkers();
             }
         }
         
-        // Clear all markers
-        function clearAllMarkers() {
-            markers.forEach(marker => map.removeLayer(marker));
-            markers = [];
-            markerCount = 0;
-            updateMarkerCount();
+        // Add sample markers for demonstration (fallback)
+        function addSampleMarkers() {
+            const sampleLocations = [
+                { lat: 41.560000, lng: -87.660000, title: 'Sample Location 1', description: 'A sample location', category: 'sample' },
+                { lat: 41.555000, lng: -87.670000, title: 'Sample Location 2', description: 'Another sample location', category: 'sample' },
+                { lat: 41.562000, lng: -87.658000, title: 'Sample Location 3', description: 'Third sample location', category: 'sample' }
+            ];
+            
+            sampleLocations.forEach(location => {
+                addMarker(location.lat, location.lng, location.title, location.description, location.category);
+            });
         }
         
         // Fit map to markers
@@ -221,12 +250,6 @@
         document.addEventListener('DOMContentLoaded', function() {
             initMap();
             
-            document.getElementById('addMarker').addEventListener('click', function() {
-                const center = map.getCenter();
-                addMarker(center.lat, center.lng);
-            });
-            
-            document.getElementById('clearMarkers').addEventListener('click', clearAllMarkers);
             document.getElementById('fitMarkers').addEventListener('click', fitMapToMarkers);
         });
         
@@ -240,8 +263,7 @@
         // Expose API for WordPress
         window.WPLeafletMap = {
             addMarker: addMarker,
-            removeMarker: removeMarker,
-            clearAllMarkers: clearAllMarkers,
+            loadMarkersFromJSON: loadMarkersFromJSON,
             fitMapToMarkers: fitMapToMarkers,
             getMap: () => map
         };

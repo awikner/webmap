@@ -1,0 +1,36 @@
+{
+  "markers": [
+    {
+      "id": 1,
+      "lat": 41.557237,
+      "lng": -87.665491,
+      "title": "Main Location",
+      "description": "This is the primary location marker",
+      "category": "main"
+    },
+    {
+      "id": 2,
+      "lat": 41.560000,
+      "lng": -87.660000,
+      "title": "Secondary Point",
+      "description": "An important secondary location",
+      "category": "secondary"
+    },
+    {
+      "id": 3,
+      "lat": 41.555000,
+      "lng": -87.670000,
+      "title": "Reference Point",
+      "description": "A reference location for navigation",
+      "category": "reference"
+    },
+    {
+      "id": 4,
+      "lat": 41.562000,
+      "lng": -87.658000,
+      "title": "Landmark",
+      "description": "A notable landmark in the area",
+      "category": "landmark"
+    }
+  ]
+}

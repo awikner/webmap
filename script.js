@@ -3,15 +3,15 @@ let map;
 let markers = [];
 let markerCount = 0;
 
-// Default map center (San Francisco)
-const defaultCenter = [37.7749, -122.4194];
-const defaultZoom = 13;
+// Default map center
+const defaultCenter = [41.557237, -87.665491];
+const defaultZoom = 14;
 
 // Initialize the map when the page loads
 document.addEventListener('DOMContentLoaded', function() {
     initializeMap();
     setupEventListeners();
-    addSampleMarkers();
+    loadMarkersFromJSON();
 });
 
 // Initialize the Leaflet map
@@ -42,17 +42,6 @@ function initializeMap() {
 
 // Setup event listeners for buttons
 function setupEventListeners() {
-    // Add marker button
-    document.getElementById('addMarker').addEventListener('click', function() {
-        const center = map.getCenter();
-        addMarker(center.lat, center.lng);
-    });
-    
-    // Clear markers button
-    document.getElementById('clearMarkers').addEventListener('click', function() {
-        clearAllMarkers();
-    });
-    
     // Fullscreen toggle button
     document.getElementById('toggleFullscreen').addEventListener('click', function() {
         toggleFullscreen();
@@ -67,7 +56,7 @@ function setupEventListeners() {
 }
 
 // Add a marker to the map
-function addMarker(lat, lng, title = 'Custom Marker') {
+function addMarker(lat, lng, title = 'Marker', description = '', category = 'default') {
     const marker = L.marker([lat, lng], {
         icon: L.divIcon({
             className: 'custom-marker',
@@ -81,10 +70,11 @@ function addMarker(lat, lng, title = 'Custom Marker') {
     marker.bindPopup(`
         <div style="text-align: center;">
             <h4>${title}</h4>
+            <p><strong>Description:</strong><br>${description}</p>
             <p><strong>Coordinates:</strong><br>
             Lat: ${lat.toFixed(6)}<br>
             Lng: ${lng.toFixed(6)}</p>
-            <button onclick="removeMarker(${markers.length})" style="background: #f44336; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Remove</button>
+            <p><strong>Category:</strong> ${category}</p>
         </div>
     `);
     
@@ -96,24 +86,41 @@ function addMarker(lat, lng, title = 'Custom Marker') {
     return marker;
 }
 
-// Remove a specific marker
-function removeMarker(index) {
-    if (index >= 0 && index < markers.length) {
-        map.removeLayer(markers[index]);
-        markers.splice(index, 1);
-        markerCount--;
-        updateMarkerCount();
+// Load markers from JSON file
+async function loadMarkersFromJSON() {
+    try {
+        const response = await fetch('markers.json');
+        const data = await response.json();
+        
+        // Clear existing markers
+        markers.forEach(marker => {
+            map.removeLayer(marker);
+        });
+        markers = [];
+        markerCount = 0;
+        
+        // Add markers from JSON data
+        data.markers.forEach(markerData => {
+            addMarker(
+                markerData.lat,
+                markerData.lng,
+                markerData.title,
+                markerData.description,
+                markerData.category
+            );
+        });
+        
+        // Fit map to show all markers
+        if (markers.length > 0) {
+            fitMapToMarkers();
+        }
+        
+        console.log(`Loaded ${markers.length} markers from JSON file`);
+    } catch (error) {
+        console.error('Error loading markers from JSON:', error);
+        // Fallback to sample markers if JSON fails to load
+        addSampleMarkers();
     }
-}
-
-// Clear all markers
-function clearAllMarkers() {
-    markers.forEach(marker => {
-        map.removeLayer(marker);
-    });
-    markers = [];
-    markerCount = 0;
-    updateMarkerCount();
 }
 
 // Update marker count display
@@ -142,16 +149,16 @@ function toggleFullscreen() {
     }, 100);
 }
 
-// Add sample markers for demonstration
+// Add sample markers for demonstration (fallback)
 function addSampleMarkers() {
     const sampleLocations = [
-        { lat: 37.7849, lng: -122.4094, title: 'Sample Location 1' },
-        { lat: 37.7649, lng: -122.4294, title: 'Sample Location 2' },
-        { lat: 37.7549, lng: -122.4094, title: 'Sample Location 3' }
+        { lat: 41.560000, lng: -87.660000, title: 'Sample Location 1', description: 'A sample location', category: 'sample' },
+        { lat: 41.555000, lng: -87.670000, title: 'Sample Location 2', description: 'Another sample location', category: 'sample' },
+        { lat: 41.562000, lng: -87.658000, title: 'Sample Location 3', description: 'Third sample location', category: 'sample' }
     ];
     
     sampleLocations.forEach(location => {
-        addMarker(location.lat, location.lng, location.title);
+        addMarker(location.lat, location.lng, location.title, location.description, location.category);
     });
 }
 
@@ -171,8 +178,7 @@ function fitMapToMarkers() {
 // Export functions for external use (WordPress embedding)
 window.LeafletMapAPI = {
     addMarker: addMarker,
-    removeMarker: removeMarker,
-    clearAllMarkers: clearAllMarkers,
+    loadMarkersFromJSON: loadMarkersFromJSON,
     getMapBounds: getMapBounds,
     fitMapToMarkers: fitMapToMarkers,
     getMap: () => map
