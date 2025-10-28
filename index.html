@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Interactive Map</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Interactive Custom Map</h1>
+            <p>Powered by Leaflet.js - Ready for WordPress embedding</p>
+        </header>
+        
+        <div class="map-controls">
+            <button id="addMarker" class="btn">Add Marker</button>
+            <button id="clearMarkers" class="btn">Clear All</button>
+            <button id="toggleFullscreen" class="btn">Fullscreen</button>
+        </div>
+        
+        <div id="map" class="map-container"></div>
+        
+        <div class="info-panel">
+            <h3>Map Information</h3>
+            <div id="coordinates">Click on the map to see coordinates</div>
+            <div id="markerCount">Markers: 0</div>
+        </div>
+    </div>
+    
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    
+    <!-- Custom JavaScript -->
+    <script src="script.js"></script>
+</body>
+</html>

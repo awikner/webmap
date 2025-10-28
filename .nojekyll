@@ -1,0 +1,2 @@
+# This file tells GitHub Pages to not process the site with Jekyll
+# Since we're using plain HTML/CSS/JS, we don't need Jekyll processing
