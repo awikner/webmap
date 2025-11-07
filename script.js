@@ -4,6 +4,7 @@ let markers = [];
 let markerCount = 0;
 let allCrashData = []; // Store all crash data
 let selectedYears = [2021, 2022, 2023, 2024]; // Default: all years selected
+let isUpdatingMarkers = false; // Flag to prevent recursive updates during marker updates
 
 // Default map center
 const defaultCenter = [41.557237, -87.665491];
@@ -49,7 +50,7 @@ function initializeMap() {
     
     // Recluster markers when zoom level changes (without resetting zoom)
     map.on('zoomend', function() {
-        if (allCrashData.length > 0) {
+        if (allCrashData.length > 0 && !isUpdatingMarkers) {
             updateMarkersByYear(false); // Don't fit map when zooming
         }
     });
@@ -404,6 +405,18 @@ function createCrashMarker(props) {
 // Update markers based on selected years
 // fitMap: if true, fit map to show all markers; if false, keep current zoom level
 function updateMarkersByYear(fitMap = true) {
+    // Prevent recursive calls
+    if (isUpdatingMarkers) {
+        console.log('Already updating markers, skipping...');
+        return;
+    }
+    
+    isUpdatingMarkers = true;
+    
+    // Store current view state to restore after updating markers
+    const currentCenter = map.getCenter();
+    const currentZoom = map.getZoom();
+        
         // Clear existing markers
         markers.forEach(marker => {
             map.removeLayer(marker);
@@ -471,10 +484,18 @@ function updateMarkersByYear(fitMap = true) {
     // Fit map to show all visible markers (only if fitMap is true)
     if (fitMap && markers.length > 0) {
         fitMapToMarkers();
+    } else {
+        // Restore the previous view state to prevent zoom reset
+        map.setView(currentCenter, currentZoom, { animate: false });
     }
     
     updateMarkerCount();
     console.log(`Displaying ${markers.length} markers (${allMarkers.length} total crashes) for years: ${selectedYears.join(', ')}`);
+    
+    // Reset flag after a short delay to allow map to settle
+    setTimeout(() => {
+        isUpdatingMarkers = false;
+    }, 100);
 }
 
 // Load markers from combined GeoJSON file (2021-2024)
