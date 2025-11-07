@@ -47,10 +47,10 @@ function initializeMap() {
         }
     });
     
-    // Recluster markers when zoom level changes
+    // Recluster markers when zoom level changes (without resetting zoom)
     map.on('zoomend', function() {
         if (allCrashData.length > 0) {
-            updateMarkersByYear();
+            updateMarkersByYear(false); // Don't fit map when zooming
         }
     });
 }
@@ -402,7 +402,8 @@ function createCrashMarker(props) {
 }
 
 // Update markers based on selected years
-function updateMarkersByYear() {
+// fitMap: if true, fit map to show all markers; if false, keep current zoom level
+function updateMarkersByYear(fitMap = true) {
         // Clear existing markers
         markers.forEach(marker => {
             map.removeLayer(marker);
@@ -467,9 +468,9 @@ function updateMarkersByYear() {
     console.log('Total data by year:', yearCounts);
     console.log('Selected years:', selectedYears);
     
-    // Fit map to show all visible markers
-        if (markers.length > 0) {
-            fitMapToMarkers();
+    // Fit map to show all visible markers (only if fitMap is true)
+    if (fitMap && markers.length > 0) {
+        fitMapToMarkers();
     }
     
     updateMarkerCount();
