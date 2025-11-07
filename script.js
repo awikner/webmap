@@ -453,7 +453,7 @@ function updateMarkersByYear(fitMap = true) {
     
     // Cluster markers that are close together (within 50 pixels at current zoom level)
     // Using pixel distance so clustering adapts to zoom level
-    const clusters = clusterMarkers(allMarkers, map, 50);
+    const clusters = clusterMarkers(allMarkers, map, 30);
     
     console.log(`Created ${clusters.length} clusters from ${allMarkers.length} markers`);
     let clusterCount = 0;
