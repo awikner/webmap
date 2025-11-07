@@ -178,7 +178,6 @@ function createCrashMarker(props) {
     if (!lat || !lon) return null;
     
     const crashDate = formatCrashDate(props.CrashDateT);
-    const caseId = props.CASE_ID || 'N/A';
     const collisionType = props.COLL_TYPE || 'N/A';
     const injuries = props.INJURIES || 0;
     const fatalities = props.FATALITIES || 0;
@@ -189,20 +188,13 @@ function createCrashMarker(props) {
     // Determine marker color based on severity
     const markerColor = getMarkerColor(fatalities, injuries);
     
-    // Create popup content with crash information
+    // Create popup content with crash information in paragraph form
     const popupContent = `
         <div style="text-align: left; min-width: 200px;">
             <h4 style="margin-top: 0;">Crash Report</h4>
-            <p><strong>Case ID:</strong> ${caseId}</p>
-            <p><strong>Year:</strong> ${year || 'N/A'}</p>
-            <p><strong>Date & Time:</strong><br>${crashDate}</p>
-            <p><strong>Collision Type:</strong> ${collisionType}</p>
-            <p><strong>Injuries:</strong> ${injuries} | <strong>Fatalities:</strong> ${fatalities}</p>
-            <p><strong>Weather:</strong> ${weather}</p>
-            <p><strong>Lighting:</strong> ${lighting}</p>
-            <p><strong>Coordinates:</strong><br>
-            Lat: ${lat.toFixed(6)}<br>
-            Lng: ${lon.toFixed(6)}</p>
+            <p>This crash occurred on <strong>${crashDate}</strong>. The collision type was <strong>${collisionType}</strong>. There were <strong>${injuries}</strong> injury/injuries and <strong>${fatalities}</strong> fatality/fatalities.</p>
+            <p>Weather conditions were <strong>${weather}</strong> and lighting was <strong>${lighting}</strong>.</p>
+            <p>Coordinates: <strong>Lat: ${lat.toFixed(6)}, Lng: ${lon.toFixed(6)}</strong></p>
         </div>
     `;
     
@@ -289,9 +281,9 @@ async function loadMarkersFromJSON() {
         
         console.log(`✓ Loaded ${allCrashData.length} crash records from ${fileName}`);
         
-        // Debug: show sample year values and count by year
+        // Count crashes by year and update checkbox labels
+        const yearCounts = {};
         if (allCrashData.length > 0) {
-            const yearCounts = {};
             allCrashData.forEach(feature => {
                 const year = extractYear(feature.properties.YEAR);
                 if (year) {
@@ -305,6 +297,9 @@ async function loadMarkersFromJSON() {
             console.log(`Sample YEAR value: "${sampleYear}" (extracted: ${extractYear(sampleYear)})`);
         }
         
+        // Update checkbox labels with crash counts
+        updateYearCheckboxLabels(yearCounts);
+        
         // Update markers based on selected years
         updateMarkersByYear();
         
@@ -315,6 +310,22 @@ async function loadMarkersFromJSON() {
             addSampleMarkers();
         }
     }
+}
+
+// Update checkbox labels with crash counts by year
+function updateYearCheckboxLabels(yearCounts) {
+    const yearCheckboxes = document.querySelectorAll('.year-checkbox');
+    yearCheckboxes.forEach(checkbox => {
+        const year = parseInt(checkbox.getAttribute('data-year'));
+        const count = yearCounts[year] || 0;
+        const label = checkbox.closest('.year-checkbox-label');
+        if (label) {
+            const span = label.querySelector('span');
+            if (span) {
+                span.textContent = `${year} (${count} crashes)`;
+            }
+        }
+    });
 }
 
 // Update marker count display (if element exists)
