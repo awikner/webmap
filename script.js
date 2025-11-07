@@ -86,11 +86,38 @@ function addMarker(lat, lng, title = 'Marker', description = '', category = 'def
     return marker;
 }
 
-// Load markers from JSON file
+// Convert CrashDateT to readable date format
+function formatCrashDate(crashDateT) {
+    if (!crashDateT) return 'Date not available';
+    
+    // CrashDateT is in format: YYYYMMDDHHMMSS (e.g., 20240121122000.0)
+    const dateStr = crashDateT.toString();
+    const year = dateStr.substring(0, 4);
+    const month = dateStr.substring(4, 6);
+    const day = dateStr.substring(6, 8);
+    const hour = dateStr.substring(8, 10);
+    const minute = dateStr.substring(10, 12);
+    
+    try {
+        const date = new Date(`${year}-${month}-${day}T${hour}:${minute}:00`);
+        return date.toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+    } catch (e) {
+        return `${month}/${day}/${year} ${hour}:${minute}`;
+    }
+}
+
+// Load markers from GeoJSON file
 async function loadMarkersFromJSON() {
     try {
-        const response = await fetch('markers.json');
-        const data = await response.json();
+        const response = await fetch('183rdCrashes2024.geojson');
+        const geojson = await response.json();
         
         // Clear existing markers
         markers.forEach(marker => {
@@ -99,26 +126,68 @@ async function loadMarkersFromJSON() {
         markers = [];
         markerCount = 0;
         
-        // Add markers from JSON data
-        data.markers.forEach(markerData => {
-            addMarker(
-                markerData.lat,
-                markerData.lng,
-                markerData.title,
-                markerData.description,
-                markerData.category
-            );
-        });
+        // Add markers from GeoJSON features
+        if (geojson.features && Array.isArray(geojson.features)) {
+            geojson.features.forEach(feature => {
+                const props = feature.properties;
+                const lat = props.TSCrashLat;
+                const lon = props.TSCrashLon;
+                
+                // Only add marker if coordinates are available
+                if (lat && lon) {
+                    const crashDate = formatCrashDate(props.CrashDateT);
+                    const caseId = props.CASE_ID || 'N/A';
+                    const collisionType = props.COLL_TYPE || 'N/A';
+                    const injuries = props.INJURIES || 0;
+                    const fatalities = props.FATALITIES || 0;
+                    const weather = props.WEATHER || 'N/A';
+                    const lighting = props.LIGHTING || 'N/A';
+                    
+                    // Create popup content with crash information
+                    const popupContent = `
+                        <div style="text-align: left; min-width: 200px;">
+                            <h4 style="margin-top: 0;">Crash Report</h4>
+                            <p><strong>Case ID:</strong> ${caseId}</p>
+                            <p><strong>Date & Time:</strong><br>${crashDate}</p>
+                            <p><strong>Collision Type:</strong> ${collisionType}</p>
+                            <p><strong>Injuries:</strong> ${injuries} | <strong>Fatalities:</strong> ${fatalities}</p>
+                            <p><strong>Weather:</strong> ${weather}</p>
+                            <p><strong>Lighting:</strong> ${lighting}</p>
+                            <p><strong>Coordinates:</strong><br>
+                            Lat: ${lat.toFixed(6)}<br>
+                            Lng: ${lon.toFixed(6)}</p>
+                        </div>
+                    `;
+                    
+                    // Create marker
+                    const marker = L.marker([lat, lon], {
+                        icon: L.divIcon({
+                            className: 'custom-marker',
+                            html: '<div style="background: #4CAF50; border: 3px solid white; border-radius: 50%; width: 20px; height: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.3);"></div>',
+                            iconSize: [20, 20],
+                            iconAnchor: [10, 10]
+                        })
+                    });
+                    
+                    // Add popup
+                    marker.bindPopup(popupContent);
+                    marker.addTo(map);
+                    markers.push(marker);
+                    markerCount++;
+                }
+            });
+        }
         
         // Fit map to show all markers
         if (markers.length > 0) {
             fitMapToMarkers();
         }
         
-        console.log(`Loaded ${markers.length} markers from JSON file`);
+        updateMarkerCount();
+        console.log(`Loaded ${markers.length} crash markers from GeoJSON file`);
     } catch (error) {
-        console.error('Error loading markers from JSON:', error);
-        // Fallback to sample markers if JSON fails to load
+        console.error('Error loading markers from GeoJSON:', error);
+        // Fallback to sample markers if GeoJSON fails to load
         addSampleMarkers();
     }
 }
