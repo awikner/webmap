@@ -2,6 +2,8 @@
 let map;
 let markers = [];
 let markerCount = 0;
+let allCrashData = []; // Store all crash data
+let selectedYears = [2021, 2022, 2023, 2024]; // Default: all years selected
 
 // Default map center
 const defaultCenter = [41.557237, -87.665491];
@@ -52,6 +54,23 @@ function setupEventListeners() {
         if (e.key === 'Escape' && document.getElementById('map').classList.contains('fullscreen')) {
             toggleFullscreen();
         }
+    });
+    
+    // Year filter checkboxes
+    const yearCheckboxes = document.querySelectorAll('.year-checkbox');
+    yearCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const year = parseInt(this.getAttribute('data-year'));
+            if (this.checked) {
+                if (!selectedYears.includes(year)) {
+                    selectedYears.push(year);
+                }
+            } else {
+                selectedYears = selectedYears.filter(y => y !== year);
+            }
+            // Update markers based on selected years
+            updateMarkersByYear();
+        });
     });
 }
 
@@ -131,84 +150,122 @@ function getMarkerColor(fatalities, injuries) {
     return '#FFEB3B'; // Yellow
 }
 
+// Extract year from YEAR field (handles both 2-digit and 4-digit formats)
+function extractYear(yearValue) {
+    if (!yearValue) return null;
+    const yearStr = yearValue.toString();
+    // If it's a 2-digit year (e.g., "24" for 2024), convert to 4-digit
+    if (yearStr.length === 2) {
+        const twoDigit = parseInt(yearStr);
+        // Assume years 00-99 map to 2000-2099
+        return 2000 + twoDigit;
+    }
+    // If it's already 4-digit, return as is
+    return parseInt(yearStr);
+}
+
+// Create a marker from crash data
+function createCrashMarker(props) {
+    const lat = props.TSCrashLat;
+    const lon = props.TSCrashLon;
+    
+    if (!lat || !lon) return null;
+    
+    const crashDate = formatCrashDate(props.CrashDateT);
+    const caseId = props.CASE_ID || 'N/A';
+    const collisionType = props.COLL_TYPE || 'N/A';
+    const injuries = props.INJURIES || 0;
+    const fatalities = props.FATALITIES || 0;
+    const weather = props.WEATHER || 'N/A';
+    const lighting = props.LIGHTING || 'N/A';
+    const year = extractYear(props.YEAR);
+    
+    // Determine marker color based on severity
+    const markerColor = getMarkerColor(fatalities, injuries);
+    
+    // Create popup content with crash information
+    const popupContent = `
+        <div style="text-align: left; min-width: 200px;">
+            <h4 style="margin-top: 0;">Crash Report</h4>
+            <p><strong>Case ID:</strong> ${caseId}</p>
+            <p><strong>Year:</strong> ${year || 'N/A'}</p>
+            <p><strong>Date & Time:</strong><br>${crashDate}</p>
+            <p><strong>Collision Type:</strong> ${collisionType}</p>
+            <p><strong>Injuries:</strong> ${injuries} | <strong>Fatalities:</strong> ${fatalities}</p>
+            <p><strong>Weather:</strong> ${weather}</p>
+            <p><strong>Lighting:</strong> ${lighting}</p>
+            <p><strong>Coordinates:</strong><br>
+            Lat: ${lat.toFixed(6)}<br>
+            Lng: ${lon.toFixed(6)}</p>
+        </div>
+    `;
+    
+    // Create marker with dynamic color using circleMarker for better color control
+    const marker = L.circleMarker([lat, lon], {
+        radius: 10,
+        fillColor: markerColor,
+        color: 'white',
+        weight: 3,
+        opacity: 1,
+        fillOpacity: 1
+    });
+    
+    // Add popup
+    marker.bindPopup(popupContent);
+    
+    // Store year with marker for filtering
+    marker._crashYear = year;
+    
+    return marker;
+}
+
+// Update markers based on selected years
+function updateMarkersByYear() {
+    // Clear existing markers
+    markers.forEach(marker => {
+        map.removeLayer(marker);
+    });
+    markers = [];
+    markerCount = 0;
+    
+    // Filter and add markers based on selected years
+    allCrashData.forEach(feature => {
+        const props = feature.properties;
+        const year = extractYear(props.YEAR);
+        
+        // Only add marker if year is selected
+        if (year && selectedYears.includes(year)) {
+            const marker = createCrashMarker(props);
+            if (marker) {
+                marker.addTo(map);
+                markers.push(marker);
+                markerCount++;
+            }
+        }
+    });
+    
+    // Fit map to show all visible markers
+    if (markers.length > 0) {
+        fitMapToMarkers();
+    }
+    
+    updateMarkerCount();
+    console.log(`Displaying ${markers.length} markers for years: ${selectedYears.join(', ')}`);
+}
+
 // Load markers from GeoJSON file
 async function loadMarkersFromJSON() {
     try {
         const response = await fetch('183rdCrashes2024.geojson');
         const geojson = await response.json();
         
-        // Clear existing markers
-        markers.forEach(marker => {
-            map.removeLayer(marker);
-        });
-        markers = [];
-        markerCount = 0;
+        // Store all crash data
+        allCrashData = geojson.features || [];
         
-        // Add markers from GeoJSON features
-        if (geojson.features && Array.isArray(geojson.features)) {
-            geojson.features.forEach(feature => {
-                const props = feature.properties;
-                const lat = props.TSCrashLat;
-                const lon = props.TSCrashLon;
-                
-                // Only add marker if coordinates are available
-                if (lat && lon) {
-                    const crashDate = formatCrashDate(props.CrashDateT);
-                    const caseId = props.CASE_ID || 'N/A';
-                    const collisionType = props.COLL_TYPE || 'N/A';
-                    const injuries = props.INJURIES || 0;
-                    const fatalities = props.FATALITIES || 0;
-                    const weather = props.WEATHER || 'N/A';
-                    const lighting = props.LIGHTING || 'N/A';
-                    
-                    // Determine marker color based on severity
-                    const markerColor = getMarkerColor(fatalities, injuries);
-                    
-                    // Debug: log the color being used
-                    console.log(`Marker for Case ${caseId}: Fatalities=${fatalities}, Injuries=${injuries}, Color=${markerColor}`);
-                    
-                    // Create popup content with crash information
-                    const popupContent = `
-                        <div style="text-align: left; min-width: 200px;">
-                            <h4 style="margin-top: 0;">Crash Report</h4>
-                            <p><strong>Case ID:</strong> ${caseId}</p>
-                            <p><strong>Date & Time:</strong><br>${crashDate}</p>
-                            <p><strong>Collision Type:</strong> ${collisionType}</p>
-                            <p><strong>Injuries:</strong> ${injuries} | <strong>Fatalities:</strong> ${fatalities}</p>
-                            <p><strong>Weather:</strong> ${weather}</p>
-                            <p><strong>Lighting:</strong> ${lighting}</p>
-                            <p><strong>Coordinates:</strong><br>
-                            Lat: ${lat.toFixed(6)}<br>
-                            Lng: ${lon.toFixed(6)}</p>
-                        </div>
-                    `;
-                    
-                    // Create marker with dynamic color using circleMarker for better color control
-                    const marker = L.circleMarker([lat, lon], {
-                        radius: 10,
-                        fillColor: markerColor,
-                        color: 'white',
-                        weight: 3,
-                        opacity: 1,
-                        fillOpacity: 1
-                    });
-                    
-                    // Add popup
-                    marker.bindPopup(popupContent);
-                    marker.addTo(map);
-                    markers.push(marker);
-                    markerCount++;
-                }
-            });
-        }
+        // Update markers based on selected years
+        updateMarkersByYear();
         
-        // Fit map to show all markers
-        if (markers.length > 0) {
-            fitMapToMarkers();
-        }
-        
-        updateMarkerCount();
-        console.log(`Loaded ${markers.length} crash markers from GeoJSON file`);
+        console.log(`Loaded ${allCrashData.length} crash records from GeoJSON file`);
     } catch (error) {
         console.error('Error loading markers from GeoJSON:', error);
         // Fallback to sample markers if GeoJSON fails to load
