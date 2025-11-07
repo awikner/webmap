@@ -196,15 +196,41 @@ function getMostSevereCrash(crashes) {
     return mostSevere;
 }
 
-// Calculate distance between two points in pixels at current zoom level
+// Calculate distance between two lat/lng points in meters
+function getDistanceInMeters(lat1, lng1, lat2, lng2) {
+    const R = 6371000; // Earth's radius in meters
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+// Calculate pixel distance between two markers at current zoom level
 function getPixelDistance(marker1, marker2, map) {
-    const point1 = map.latLngToContainerPoint(marker1.getLatLng());
-    const point2 = map.latLngToContainerPoint(marker2.getLatLng());
-    return Math.sqrt(Math.pow(point2.x - point1.x, 2) + Math.pow(point2.y - point1.y, 2));
+    try {
+        // Use stored lat/lng or get from marker
+        const lat1 = marker1._lat || (marker1.getLatLng ? marker1.getLatLng().lat : marker1.lat);
+        const lng1 = marker1._lng || (marker1.getLatLng ? marker1.getLatLng().lng : marker1.lng);
+        const lat2 = marker2._lat || (marker2.getLatLng ? marker2.getLatLng().lat : marker2.lat);
+        const lng2 = marker2._lng || (marker2.getLatLng ? marker2.getLatLng().lng : marker2.lng);
+        
+        const point1 = map.latLngToContainerPoint(L.latLng(lat1, lng1));
+        const point2 = map.latLngToContainerPoint(L.latLng(lat2, lng2));
+        return Math.sqrt(Math.pow(point2.x - point1.x, 2) + Math.pow(point2.y - point1.y, 2));
+    } catch (e) {
+        console.warn('Error calculating pixel distance:', e);
+        // Return a large distance if calculation fails
+        return 999999;
+    }
 }
 
 // Cluster markers that are close together
 function clusterMarkers(markerList, map, pixelDistance = 30) {
+    if (!markerList || markerList.length === 0) return [];
+    
     const clusters = [];
     const processed = new Set();
     
@@ -221,14 +247,18 @@ function clusterMarkers(markerList, map, pixelDistance = 30) {
         markerList.forEach((otherMarker, otherIndex) => {
             if (index === otherIndex || processed.has(otherIndex)) return;
             
-            const distance = getPixelDistance(marker, otherMarker, map);
-            if (distance <= pixelDistance) {
-                cluster.push(otherMarker);
-                crashData.push({
-                    fatalities: otherMarker._fatalities || 0,
-                    injuries: otherMarker._injuries || 0
-                });
-                processed.add(otherIndex);
+            try {
+                const distance = getPixelDistance(marker, otherMarker, map);
+                if (distance <= pixelDistance) {
+                    cluster.push(otherMarker);
+                    crashData.push({
+                        fatalities: otherMarker._fatalities || 0,
+                        injuries: otherMarker._injuries || 0
+                    });
+                    processed.add(otherIndex);
+                }
+            } catch (e) {
+                console.warn('Error calculating distance between markers:', e);
             }
         });
         
@@ -236,6 +266,7 @@ function clusterMarkers(markerList, map, pixelDistance = 30) {
         clusters.push({ markers: cluster, crashData });
     });
     
+    console.log(`Clustered ${markerList.length} markers into ${clusters.length} clusters`);
     return clusters;
 }
 
@@ -247,9 +278,11 @@ function createClusterMarker(cluster, map) {
     let totalLat = 0;
     let totalLng = 0;
     markers.forEach(marker => {
-        const latlng = marker.getLatLng();
-        totalLat += latlng.lat;
-        totalLng += latlng.lng;
+        // Use stored lat/lng or get from marker
+        const lat = marker._lat || (marker.getLatLng ? marker.getLatLng().lat : marker.lat);
+        const lng = marker._lng || (marker.getLatLng ? marker.getLatLng().lng : marker.lng);
+        totalLat += lat;
+        totalLng += lng;
     });
     const centerLat = totalLat / markers.length;
     const centerLng = totalLng / markers.length;
@@ -341,10 +374,12 @@ function createCrashMarker(props) {
     // Add popup
     marker.bindPopup(popupContent);
     
-    // Store year and severity data with marker for filtering and clustering
+    // Store year, severity data, and lat/lng with marker for filtering and clustering
     marker._crashYear = year;
     marker._fatalities = fatalities;
     marker._injuries = injuries;
+    marker._lat = lat;
+    marker._lng = lon;
     
     return marker;
 }
@@ -381,37 +416,56 @@ function updateMarkersByYear() {
         }
     });
     
-    // Cluster markers that are close together
-    const clusters = clusterMarkers(allMarkers, map, 30);
-    
-    // Add clustered or individual markers to map
-    clusters.forEach(cluster => {
-        if (cluster.markers.length > 1) {
-            // Create cluster marker for multiple markers
-            const clusterMarker = createClusterMarker(cluster, map);
-            clusterMarker.addTo(map);
-            markers.push(clusterMarker);
-            markerCount++;
-        } else {
-            // Add individual marker
-            const marker = cluster.markers[0];
-            marker.addTo(map);
-            markers.push(marker);
-            markerCount++;
-        }
-    });
-    
-    // Debug: log year counts
-    console.log('Total data by year:', yearCounts);
-    console.log('Selected years:', selectedYears);
-    
-    // Fit map to show all visible markers
-    if (markers.length > 0) {
-        fitMapToMarkers();
+    // Ensure map is ready before clustering
+    if (!map || !map.getContainer()) {
+        console.warn('Map not ready for clustering');
+        return;
     }
     
-    updateMarkerCount();
-    console.log(`Displaying ${markers.length} markers (${allMarkers.length} total crashes) for years: ${selectedYears.join(', ')}`);
+    // Wait a bit for map to be fully rendered, then cluster
+    setTimeout(() => {
+        // Cluster markers that are close together
+        // Use a larger pixel distance to ensure clustering works
+        const clusters = clusterMarkers(allMarkers, map, 50);
+        
+        console.log(`Created ${clusters.length} clusters from ${allMarkers.length} markers`);
+        let clusterCount = 0;
+        let individualCount = 0;
+        
+        // Add clustered or individual markers to map
+        clusters.forEach(cluster => {
+            if (cluster.markers.length > 1) {
+                // Create cluster marker for multiple markers
+                clusterCount++;
+                const clusterMarker = createClusterMarker(cluster, map);
+                clusterMarker.addTo(map);
+                markers.push(clusterMarker);
+                markerCount++;
+                console.log(`Created cluster with ${cluster.markers.length} markers`);
+            } else {
+                // Add individual marker
+                individualCount++;
+                const marker = cluster.markers[0];
+                marker.addTo(map);
+                markers.push(marker);
+                markerCount++;
+            }
+        });
+        
+        console.log(`Displayed ${clusterCount} clusters and ${individualCount} individual markers`);
+        
+        // Debug: log year counts
+        console.log('Total data by year:', yearCounts);
+        console.log('Selected years:', selectedYears);
+        
+        // Fit map to show all visible markers
+        if (markers.length > 0) {
+            fitMapToMarkers();
+        }
+        
+        updateMarkerCount();
+        console.log(`Displaying ${markers.length} markers (${allMarkers.length} total crashes) for years: ${selectedYears.join(', ')}`);
+    }, 100);
 }
 
 // Load markers from combined GeoJSON file (2021-2024)
