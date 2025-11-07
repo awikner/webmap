@@ -80,11 +80,11 @@ header p {
     width: 20px;
     height: 20px;
     cursor: pointer;
-    accent-color: #4CAF50;
+    accent-color: #2196F3;
 }
 
 .year-checkbox-label input[type="checkbox"]:checked {
-    accent-color: #4CAF50;
+    accent-color: #2196F3;
 }
 
 /* Map controls */
