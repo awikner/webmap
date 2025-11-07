@@ -115,12 +115,16 @@ function formatCrashDate(crashDateT) {
 
 // Determine marker color based on crash severity
 function getMarkerColor(fatalities, injuries) {
+    // Convert to numbers if they're strings
+    const fatCount = Number(fatalities) || 0;
+    const injCount = Number(injuries) || 0;
+    
     // Red for fatalities
-    if (fatalities && fatalities > 0) {
+    if (fatCount > 0) {
         return '#FF0000'; // Red
     }
     // Orange for injuries
-    if (injuries && injuries > 0) {
+    if (injCount > 0) {
         return '#FF9800'; // Orange
     }
     // Yellow for default (no injuries or fatalities)
@@ -179,8 +183,8 @@ async function loadMarkersFromJSON() {
                     // Create marker with dynamic color
                     const marker = L.marker([lat, lon], {
                         icon: L.divIcon({
-                            className: 'custom-marker',
-                            html: `<div style="background: ${markerColor}; border: 3px solid white; border-radius: 50%; width: 20px; height: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.3);"></div>`,
+                            className: 'crash-marker',
+                            html: `<div style="background-color: ${markerColor} !important; border: 3px solid white; border-radius: 50%; width: 20px; height: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.3);"></div>`,
                             iconSize: [20, 20],
                             iconAnchor: [10, 10]
                         })

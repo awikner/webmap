@@ -134,7 +134,7 @@ header p {
 
 /* Custom marker styles */
 .custom-marker {
-    background: #4CAF50;
+    /* Background color is set inline in JavaScript based on crash severity */
     border: 3px solid white;
     border-radius: 50%;
     width: 20px;
