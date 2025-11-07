@@ -228,9 +228,9 @@ function getPixelDistance(marker1, marker2, map) {
     }
 }
 
-// Cluster markers that are close together using geographic distance
-function clusterMarkers(markerList, map, distanceMeters = 50) {
-    if (!markerList || markerList.length === 0) return [];
+// Cluster markers that are close together using pixel distance at current zoom level
+function clusterMarkers(markerList, map, pixelDistance = 50) {
+    if (!markerList || markerList.length === 0 || !map) return [];
     
     const clusters = [];
     const processed = new Set();
@@ -255,7 +255,7 @@ function clusterMarkers(markerList, map, distanceMeters = 50) {
             return;
         }
         
-        // Find all markers within distanceMeters
+        // Find all markers within pixelDistance
         markerList.forEach((otherMarker, otherIndex) => {
             if (index === otherIndex || processed.has(otherIndex)) return;
             
@@ -264,16 +264,20 @@ function clusterMarkers(markerList, map, distanceMeters = 50) {
             
             if (!lat2 || !lng2) return;
             
-            // Calculate geographic distance in meters
-            const distance = getDistanceInMeters(lat1, lng1, lat2, lng2);
-            
-            if (distance <= distanceMeters) {
-                cluster.push(otherMarker);
-                crashData.push({
-                    fatalities: otherMarker._fatalities || 0,
-                    injuries: otherMarker._injuries || 0
-                });
-                processed.add(otherIndex);
+            try {
+                // Calculate pixel distance at current zoom level
+                const distance = getPixelDistance(marker, otherMarker, map);
+                
+                if (distance <= pixelDistance) {
+                    cluster.push(otherMarker);
+                    crashData.push({
+                        fatalities: otherMarker._fatalities || 0,
+                        injuries: otherMarker._injuries || 0
+                    });
+                    processed.add(otherIndex);
+                }
+            } catch (e) {
+                console.warn('Error calculating pixel distance:', e);
             }
         });
         
@@ -282,7 +286,7 @@ function clusterMarkers(markerList, map, distanceMeters = 50) {
     });
     
     const clusterCount = clusters.filter(c => c.markers.length > 1).length;
-    console.log(`Clustered ${markerList.length} markers into ${clusters.length} groups (${clusterCount} clusters with 2+ markers)`);
+    console.log(`Clustered ${markerList.length} markers into ${clusters.length} groups (${clusterCount} clusters with 2+ markers) at ${pixelDistance}px distance`);
     return clusters;
 }
 
@@ -447,8 +451,8 @@ function updateMarkersByYear(fitMap = true) {
         }
     });
     
-    // Cluster markers that are close together (within 50 meters)
-    // Using geographic distance instead of pixel distance for reliability
+    // Cluster markers that are close together (within 50 pixels at current zoom level)
+    // Using pixel distance so clustering adapts to zoom level
     const clusters = clusterMarkers(allMarkers, map, 50);
     
     console.log(`Created ${clusters.length} clusters from ${allMarkers.length} markers`);
