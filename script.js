@@ -164,6 +164,9 @@ async function loadMarkersFromJSON() {
                     // Determine marker color based on severity
                     const markerColor = getMarkerColor(fatalities, injuries);
                     
+                    // Debug: log the color being used
+                    console.log(`Marker for Case ${caseId}: Fatalities=${fatalities}, Injuries=${injuries}, Color=${markerColor}`);
+                    
                     // Create popup content with crash information
                     const popupContent = `
                         <div style="text-align: left; min-width: 200px;">
@@ -180,14 +183,14 @@ async function loadMarkersFromJSON() {
                         </div>
                     `;
                     
-                    // Create marker with dynamic color
-                    const marker = L.marker([lat, lon], {
-                        icon: L.divIcon({
-                            className: 'crash-marker',
-                            html: `<div style="background-color: ${markerColor} !important; border: 3px solid white; border-radius: 50%; width: 20px; height: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.3);"></div>`,
-                            iconSize: [20, 20],
-                            iconAnchor: [10, 10]
-                        })
+                    // Create marker with dynamic color using circleMarker for better color control
+                    const marker = L.circleMarker([lat, lon], {
+                        radius: 10,
+                        fillColor: markerColor,
+                        color: 'white',
+                        weight: 3,
+                        opacity: 1,
+                        fillOpacity: 1
                     });
                     
                     // Add popup
