@@ -290,6 +290,39 @@ function clusterMarkers(markerList, map, pixelDistance = 50) {
     return clusters;
 }
 
+// Attach event listeners to cluster navigation buttons
+function attachClusterNavListeners(clusterId, clusterMarker, totalCrashes) {
+    // Get the popup element
+    const popup = clusterMarker.getPopup();
+    if (!popup) return;
+    
+    const popupElement = popup.getElement();
+    if (!popupElement) return;
+    
+    // Find all navigation buttons for this cluster within the popup
+    const buttons = popupElement.querySelectorAll(`.cluster-nav-btn[data-cluster-id="${clusterId}"]`);
+    
+    buttons.forEach(button => {
+        const action = button.getAttribute('data-action');
+        
+        // Remove existing listeners by cloning the button
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
+        
+        // Attach new listener
+        newButton.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            
+            if (action === 'prev' && clusterMarker._currentIndex > 0) {
+                clusterMarker._updatePopup(clusterMarker._currentIndex - 1);
+            } else if (action === 'next' && clusterMarker._currentIndex < totalCrashes - 1) {
+                clusterMarker._updatePopup(clusterMarker._currentIndex + 1);
+            }
+        });
+    });
+}
+
 // Create popup content for a single crash event
 function createCrashPopupContent(props, index, total) {
     const crashDate = formatCrashDate(props.CrashDateT);
@@ -338,68 +371,6 @@ function createClusterMarker(cluster, map) {
     // Generate unique ID for this cluster marker
     const clusterId = `cluster-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
-    // Create update function for popup content
-    const updatePopupContent = (marker, index) => {
-        if (index < 0 || index >= crashProps.length) return;
-        marker._currentIndex = index;
-        
-        const props = crashProps[index];
-        const content = createCrashPopupContent(props, index, crashProps.length);
-        
-        // Add navigation buttons
-        const navButtons = `
-            <div style="margin-top: 15px; display: flex; justify-content: space-between; gap: 10px;">
-                <button id="cluster-prev-${clusterId}" 
-                        style="padding: 8px 15px; background: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; ${index === 0 ? 'opacity: 0.5; cursor: not-allowed;' : ''}"
-                        ${index === 0 ? 'disabled' : ''}>← Previous</button>
-                <button id="cluster-next-${clusterId}" 
-                        style="padding: 8px 15px; background: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; ${index === crashProps.length - 1 ? 'opacity: 0.5; cursor: not-allowed;' : ''}"
-                        ${index === crashProps.length - 1 ? 'disabled' : ''}>Next →</button>
-            </div>
-        `;
-        
-        marker.setPopupContent(content + navButtons);
-        
-        // Reattach event listeners after content update
-        setTimeout(() => {
-            const prevBtn = document.getElementById(`cluster-prev-${clusterId}`);
-            const nextBtn = document.getElementById(`cluster-next-${clusterId}`);
-            
-            if (prevBtn) {
-                prevBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    if (marker._currentIndex > 0) {
-                        updatePopupContent(marker, marker._currentIndex - 1);
-                    }
-                };
-            }
-            
-            if (nextBtn) {
-                nextBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    if (marker._currentIndex < crashProps.length - 1) {
-                        updatePopupContent(marker, marker._currentIndex + 1);
-                    }
-                };
-            }
-        }, 10);
-    };
-    
-    // Create initial popup with first crash
-    const initialContent = createCrashPopupContent(crashProps[0], 0, crashProps.length);
-    const navButtons = `
-        <div style="margin-top: 15px; display: flex; justify-content: space-between; gap: 10px;">
-            <button id="cluster-prev-${clusterId}" 
-                    style="padding: 8px 15px; background: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; opacity: 0.5; cursor: not-allowed;"
-                    disabled>← Previous</button>
-            <button id="cluster-next-${clusterId}" 
-                    style="padding: 8px 15px; background: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; ${crashProps.length > 1 ? '' : 'opacity: 0.5; cursor: not-allowed;'}"
-                    ${crashProps.length > 1 ? '' : 'disabled'}>Next →</button>
-        </div>
-    `;
-    
-    const popupContent = initialContent + navButtons;
-    
     // Determine size and font size based on count
     const count = markers.length;
     let size = 30;
@@ -425,41 +396,66 @@ function createClusterMarker(cluster, map) {
         icon: countIcon
     });
     
-    clusterMarker.bindPopup(popupContent);
-    
-    // Store original markers, location, crash properties, update function, and cluster ID
+    // Store original markers, location, crash properties, and cluster ID
     clusterMarker._originalMarkers = markers;
     clusterMarker._lat = centerLat;
     clusterMarker._lng = centerLng;
     clusterMarker._crashProps = crashProps;
-    clusterMarker._updatePopup = updatePopupContent;
     clusterMarker._currentIndex = 0;
     clusterMarker._clusterId = clusterId;
     
-    // Add event listener for popup open to attach navigation buttons
+    // Create update function for popup content
+    const updatePopupContent = (index) => {
+        if (index < 0 || index >= crashProps.length) return;
+        clusterMarker._currentIndex = index;
+        
+        const props = crashProps[index];
+        const content = createCrashPopupContent(props, index, crashProps.length);
+        
+        // Add navigation buttons with data attributes for event delegation
+        const navButtons = `
+            <div style="margin-top: 15px; display: flex; justify-content: space-between; gap: 10px;">
+                <button class="cluster-nav-btn" data-cluster-id="${clusterId}" data-action="prev" 
+                        style="padding: 8px 15px; background: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; ${index === 0 ? 'opacity: 0.5; cursor: not-allowed;' : ''}"
+                        ${index === 0 ? 'disabled' : ''}>← Previous</button>
+                <button class="cluster-nav-btn" data-cluster-id="${clusterId}" data-action="next" 
+                        style="padding: 8px 15px; background: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; ${index === crashProps.length - 1 ? 'opacity: 0.5; cursor: not-allowed;' : ''}"
+                        ${index === crashProps.length - 1 ? 'disabled' : ''}>Next →</button>
+            </div>
+        `;
+        
+        clusterMarker.setPopupContent(content + navButtons);
+        
+        // Reattach event listeners after content update (small delay to ensure DOM is ready)
+        setTimeout(() => {
+            attachClusterNavListeners(clusterId, clusterMarker, crashProps.length);
+        }, 50);
+    };
+    
+    // Create initial popup with first crash
+    const initialContent = createCrashPopupContent(crashProps[0], 0, crashProps.length);
+    const navButtons = `
+        <div style="margin-top: 15px; display: flex; justify-content: space-between; gap: 10px;">
+            <button class="cluster-nav-btn" data-cluster-id="${clusterId}" data-action="prev" 
+                    style="padding: 8px 15px; background: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; opacity: 0.5; cursor: not-allowed;"
+                    disabled>← Previous</button>
+            <button class="cluster-nav-btn" data-cluster-id="${clusterId}" data-action="next" 
+                    style="padding: 8px 15px; background: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; ${crashProps.length > 1 ? '' : 'opacity: 0.5; cursor: not-allowed;'}"
+                    ${crashProps.length > 1 ? '' : 'disabled'}>Next →</button>
+        </div>
+    `;
+    
+    const popupContent = initialContent + navButtons;
+    clusterMarker.bindPopup(popupContent);
+    
+    // Store update function
+    clusterMarker._updatePopup = updatePopupContent;
+    
+    // Attach event listeners when popup opens
     clusterMarker.on('popupopen', function() {
         setTimeout(() => {
-            const prevBtn = document.getElementById(`cluster-prev-${clusterId}`);
-            const nextBtn = document.getElementById(`cluster-next-${clusterId}`);
-            
-            if (prevBtn) {
-                prevBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    if (clusterMarker._currentIndex > 0) {
-                        updatePopupContent(clusterMarker, clusterMarker._currentIndex - 1);
-                    }
-                };
-            }
-            
-            if (nextBtn) {
-                nextBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    if (clusterMarker._currentIndex < crashProps.length - 1) {
-                        updatePopupContent(clusterMarker, clusterMarker._currentIndex + 1);
-                    }
-                };
-            }
-        }, 10);
+            attachClusterNavListeners(clusterId, clusterMarker, crashProps.length);
+        }, 50);
     });
     
     return clusterMarker;
