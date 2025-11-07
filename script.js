@@ -265,60 +265,46 @@ function updateMarkersByYear() {
     console.log(`Displaying ${markers.length} markers for years: ${selectedYears.join(', ')}`);
 }
 
-// Load markers from multiple GeoJSON files (one per year)
+// Load markers from combined GeoJSON file (2021-2024)
 async function loadMarkersFromJSON() {
     try {
-        const fileNames = [
-            '183rdCrashes2021.geojson',
-            '183rdCrashes2022.geojson',
-            '183rdCrashes2023.geojson',
-            '183rdCrashes2024.geojson'
-        ];
+        const fileName = '183rdCrashes2021-2024.geojson';
         
-        // Fetch all files in parallel
-        const fetchPromises = fileNames.map(fileName => 
-            fetch(fileName)
-                .then(response => {
-                    if (!response.ok) {
-                        console.warn(`File ${fileName} not found or failed to load (status: ${response.status})`);
-                        return { fileName, data: null, error: `HTTP ${response.status}` };
-                    }
-                    return response.json().then(data => ({ fileName, data, error: null }));
-                })
-                .catch(error => {
-                    console.warn(`Error loading ${fileName}:`, error);
-                    return { fileName, data: null, error: error.message };
-                })
-        );
+        const response = await fetch(fileName);
         
-        const results = await Promise.all(fetchPromises);
+        if (!response.ok) {
+            throw new Error(`Failed to load ${fileName}: HTTP ${response.status}`);
+        }
         
-        // Combine all features from all files
-        allCrashData = [];
-        results.forEach((result, index) => {
-            if (result.data && result.data.features) {
-                const features = result.data.features;
-                allCrashData = allCrashData.concat(features);
-                console.log(`✓ Loaded ${features.length} records from ${result.fileName}`);
-                
-                // Debug: show sample year values
-                if (features.length > 0) {
-                    const sampleYear = features[0].properties.YEAR;
-                    console.log(`  Sample YEAR value: "${sampleYear}" (extracted: ${extractYear(sampleYear)})`);
+        const geojson = await response.json();
+        
+        // Store all crash data
+        allCrashData = geojson.features || [];
+        
+        console.log(`✓ Loaded ${allCrashData.length} crash records from ${fileName}`);
+        
+        // Debug: show sample year values and count by year
+        if (allCrashData.length > 0) {
+            const yearCounts = {};
+            allCrashData.forEach(feature => {
+                const year = extractYear(feature.properties.YEAR);
+                if (year) {
+                    yearCounts[year] = (yearCounts[year] || 0) + 1;
                 }
-            } else {
-                console.warn(`✗ Failed to load ${result.fileName}: ${result.error || 'Unknown error'}`);
-            }
-        });
-        
-        console.log(`Total: Loaded ${allCrashData.length} crash records from all GeoJSON files`);
+            });
+            console.log('Data by year:', yearCounts);
+            
+            // Show sample year value
+            const sampleYear = allCrashData[0].properties.YEAR;
+            console.log(`Sample YEAR value: "${sampleYear}" (extracted: ${extractYear(sampleYear)})`);
+        }
         
         // Update markers based on selected years
         updateMarkersByYear();
         
     } catch (error) {
-        console.error('Error loading markers from GeoJSON files:', error);
-        // Fallback to sample markers if all files fail to load
+        console.error('Error loading markers from GeoJSON file:', error);
+        // Fallback to sample markers if file fails to load
         if (allCrashData.length === 0) {
             addSampleMarkers();
         }
