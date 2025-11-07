@@ -46,6 +46,13 @@ function initializeMap() {
             coordinatesEl.textContent = `Lat: ${lat}, Lng: ${lng}`;
         }
     });
+    
+    // Recluster markers when zoom level changes
+    map.on('zoomend', function() {
+        if (allCrashData.length > 0) {
+            updateMarkersByYear();
+        }
+    });
 }
 
 // Setup event listeners for buttons
@@ -170,6 +177,129 @@ function extractYear(yearValue) {
     return parseInt(yearStr);
 }
 
+// Determine the most severe crash from a group of crashes
+function getMostSevereCrash(crashes) {
+    let mostSevere = { fatalities: 0, injuries: 0 };
+    
+    crashes.forEach(crash => {
+        const fatalities = Number(crash.fatalities) || 0;
+        const injuries = Number(crash.injuries) || 0;
+        
+        // Prioritize fatalities over injuries
+        if (fatalities > mostSevere.fatalities) {
+            mostSevere = { fatalities, injuries };
+        } else if (fatalities === mostSevere.fatalities && injuries > mostSevere.injuries) {
+            mostSevere = { fatalities, injuries };
+        }
+    });
+    
+    return mostSevere;
+}
+
+// Calculate distance between two points in pixels at current zoom level
+function getPixelDistance(marker1, marker2, map) {
+    const point1 = map.latLngToContainerPoint(marker1.getLatLng());
+    const point2 = map.latLngToContainerPoint(marker2.getLatLng());
+    return Math.sqrt(Math.pow(point2.x - point1.x, 2) + Math.pow(point2.y - point1.y, 2));
+}
+
+// Cluster markers that are close together
+function clusterMarkers(markerList, map, pixelDistance = 30) {
+    const clusters = [];
+    const processed = new Set();
+    
+    markerList.forEach((marker, index) => {
+        if (processed.has(index)) return;
+        
+        const cluster = [marker];
+        const crashData = [{
+            fatalities: marker._fatalities || 0,
+            injuries: marker._injuries || 0
+        }];
+        
+        // Find all markers within pixelDistance
+        markerList.forEach((otherMarker, otherIndex) => {
+            if (index === otherIndex || processed.has(otherIndex)) return;
+            
+            const distance = getPixelDistance(marker, otherMarker, map);
+            if (distance <= pixelDistance) {
+                cluster.push(otherMarker);
+                crashData.push({
+                    fatalities: otherMarker._fatalities || 0,
+                    injuries: otherMarker._injuries || 0
+                });
+                processed.add(otherIndex);
+            }
+        });
+        
+        processed.add(index);
+        clusters.push({ markers: cluster, crashData });
+    });
+    
+    return clusters;
+}
+
+// Create a cluster marker with count and severity-based color
+function createClusterMarker(cluster, map) {
+    const { markers, crashData } = cluster;
+    
+    // Calculate center point
+    let totalLat = 0;
+    let totalLng = 0;
+    markers.forEach(marker => {
+        const latlng = marker.getLatLng();
+        totalLat += latlng.lat;
+        totalLng += latlng.lng;
+    });
+    const centerLat = totalLat / markers.length;
+    const centerLng = totalLng / markers.length;
+    
+    // Determine most severe crash
+    const mostSevere = getMostSevereCrash(crashData);
+    const markerColor = getMarkerColor(mostSevere.fatalities, mostSevere.injuries);
+    
+    // Create combined popup content
+    const popupContent = `
+        <div style="text-align: left; min-width: 200px;">
+            <h4 style="margin-top: 0;">Crash Cluster</h4>
+            <p>This cluster represents <strong>${markers.length}</strong> crash/crashes at this location.</p>
+            <p>Most severe crash: <strong>${mostSevere.fatalities}</strong> fatality/fatalities, <strong>${mostSevere.injuries}</strong> injury/injuries.</p>
+        </div>
+    `;
+    
+    // Determine size and font size based on count
+    const count = markers.length;
+    let size = 30;
+    let fontSize = 12;
+    if (count > 9) {
+        size = 35;
+        fontSize = 11;
+    }
+    if (count > 99) {
+        size = 40;
+        fontSize = 10;
+    }
+    
+    // Create count label using a div icon
+    const countIcon = L.divIcon({
+        className: 'cluster-marker',
+        html: `<div style="background-color: ${markerColor}; border: 3px solid white; border-radius: 50%; width: ${size}px; height: ${size}px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: ${fontSize}px; box-shadow: 0 2px 10px rgba(0,0,0,0.3);">${count}</div>`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2]
+    });
+    
+    const clusterMarker = L.marker([centerLat, centerLng], {
+        icon: countIcon
+    });
+    
+    clusterMarker.bindPopup(popupContent);
+    
+    // Store original markers for reference
+    clusterMarker._originalMarkers = markers;
+    
+    return clusterMarker;
+}
+
 // Create a marker from crash data
 function createCrashMarker(props) {
     const lat = props.TSCrashLat;
@@ -211,8 +341,10 @@ function createCrashMarker(props) {
     // Add popup
     marker.bindPopup(popupContent);
     
-    // Store year with marker for filtering
+    // Store year and severity data with marker for filtering and clustering
     marker._crashYear = year;
+    marker._fatalities = fatalities;
+    marker._injuries = injuries;
     
     return marker;
 }
@@ -228,8 +360,9 @@ function updateMarkersByYear() {
     
     // Debug: count markers by year
     const yearCounts = {};
+    const allMarkers = [];
     
-    // Filter and add markers based on selected years
+    // Filter and create markers based on selected years
     allCrashData.forEach(feature => {
         const props = feature.properties;
         const year = extractYear(props.YEAR);
@@ -239,14 +372,32 @@ function updateMarkersByYear() {
             yearCounts[year] = (yearCounts[year] || 0) + 1;
         }
         
-        // Only add marker if year is selected
+        // Only create marker if year is selected
         if (year && selectedYears.includes(year)) {
             const marker = createCrashMarker(props);
             if (marker) {
-                marker.addTo(map);
-                markers.push(marker);
-                markerCount++;
+                allMarkers.push(marker);
             }
+        }
+    });
+    
+    // Cluster markers that are close together
+    const clusters = clusterMarkers(allMarkers, map, 30);
+    
+    // Add clustered or individual markers to map
+    clusters.forEach(cluster => {
+        if (cluster.markers.length > 1) {
+            // Create cluster marker for multiple markers
+            const clusterMarker = createClusterMarker(cluster, map);
+            clusterMarker.addTo(map);
+            markers.push(clusterMarker);
+            markerCount++;
+        } else {
+            // Add individual marker
+            const marker = cluster.markers[0];
+            marker.addTo(map);
+            markers.push(marker);
+            markerCount++;
         }
     });
     
@@ -260,7 +411,7 @@ function updateMarkersByYear() {
     }
     
     updateMarkerCount();
-    console.log(`Displaying ${markers.length} markers for years: ${selectedYears.join(', ')}`);
+    console.log(`Displaying ${markers.length} markers (${allMarkers.length} total crashes) for years: ${selectedYears.join(', ')}`);
 }
 
 // Load markers from combined GeoJSON file (2021-2024)
