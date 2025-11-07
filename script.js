@@ -290,6 +290,27 @@ function clusterMarkers(markerList, map, pixelDistance = 50) {
     return clusters;
 }
 
+// Create popup content for a single crash event
+function createCrashPopupContent(props, index, total) {
+    const crashDate = formatCrashDate(props.CrashDateT);
+    const collisionType = props.COLL_TYPE || 'N/A';
+    const injuries = props.INJURIES || 0;
+    const fatalities = props.FATALITIES || 0;
+    const weather = props.WEATHER || 'N/A';
+    const lighting = props.LIGHTING || 'N/A';
+    const lat = props.TSCrashLat;
+    const lon = props.TSCrashLon;
+    
+    return `
+        <div style="text-align: left; min-width: 250px;">
+            <h4 style="margin-top: 0;">Crash Report ${index + 1} of ${total}</h4>
+            <p>This crash occurred on <strong>${crashDate}</strong>. The collision type was <strong>${collisionType}</strong>. There were <strong>${injuries}</strong> injury/injuries and <strong>${fatalities}</strong> fatality/fatalities.</p>
+            <p>Weather conditions were <strong>${weather}</strong> and lighting was <strong>${lighting}</strong>.</p>
+            <p>Coordinates: <strong>Lat: ${lat.toFixed(6)}, Lng: ${lon.toFixed(6)}</strong></p>
+        </div>
+    `;
+}
+
 // Create a cluster marker with count and severity-based color
 function createClusterMarker(cluster, map) {
     const { markers, crashData } = cluster;
@@ -311,14 +332,73 @@ function createClusterMarker(cluster, map) {
     const mostSevere = getMostSevereCrash(crashData);
     const markerColor = getMarkerColor(mostSevere.fatalities, mostSevere.injuries);
     
-    // Create combined popup content
-    const popupContent = `
-        <div style="text-align: left; min-width: 200px;">
-            <h4 style="margin-top: 0;">Crash Cluster</h4>
-            <p>This cluster represents <strong>${markers.length}</strong> crash/crashes at this location.</p>
-            <p>Most severe crash: <strong>${mostSevere.fatalities}</strong> fatality/fatalities, <strong>${mostSevere.injuries}</strong> injury/injuries.</p>
+    // Get crash properties from markers for navigation
+    const crashProps = markers.map(marker => marker._crashProps).filter(props => props);
+    
+    // Generate unique ID for this cluster marker
+    const clusterId = `cluster-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Create update function for popup content
+    const updatePopupContent = (marker, index) => {
+        if (index < 0 || index >= crashProps.length) return;
+        marker._currentIndex = index;
+        
+        const props = crashProps[index];
+        const content = createCrashPopupContent(props, index, crashProps.length);
+        
+        // Add navigation buttons
+        const navButtons = `
+            <div style="margin-top: 15px; display: flex; justify-content: space-between; gap: 10px;">
+                <button id="cluster-prev-${clusterId}" 
+                        style="padding: 8px 15px; background: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; ${index === 0 ? 'opacity: 0.5; cursor: not-allowed;' : ''}"
+                        ${index === 0 ? 'disabled' : ''}>← Previous</button>
+                <button id="cluster-next-${clusterId}" 
+                        style="padding: 8px 15px; background: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; ${index === crashProps.length - 1 ? 'opacity: 0.5; cursor: not-allowed;' : ''}"
+                        ${index === crashProps.length - 1 ? 'disabled' : ''}>Next →</button>
+            </div>
+        `;
+        
+        marker.setPopupContent(content + navButtons);
+        
+        // Reattach event listeners after content update
+        setTimeout(() => {
+            const prevBtn = document.getElementById(`cluster-prev-${clusterId}`);
+            const nextBtn = document.getElementById(`cluster-next-${clusterId}`);
+            
+            if (prevBtn) {
+                prevBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (marker._currentIndex > 0) {
+                        updatePopupContent(marker, marker._currentIndex - 1);
+                    }
+                };
+            }
+            
+            if (nextBtn) {
+                nextBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (marker._currentIndex < crashProps.length - 1) {
+                        updatePopupContent(marker, marker._currentIndex + 1);
+                    }
+                };
+            }
+        }, 10);
+    };
+    
+    // Create initial popup with first crash
+    const initialContent = createCrashPopupContent(crashProps[0], 0, crashProps.length);
+    const navButtons = `
+        <div style="margin-top: 15px; display: flex; justify-content: space-between; gap: 10px;">
+            <button id="cluster-prev-${clusterId}" 
+                    style="padding: 8px 15px; background: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; opacity: 0.5; cursor: not-allowed;"
+                    disabled>← Previous</button>
+            <button id="cluster-next-${clusterId}" 
+                    style="padding: 8px 15px; background: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; ${crashProps.length > 1 ? '' : 'opacity: 0.5; cursor: not-allowed;'}"
+                    ${crashProps.length > 1 ? '' : 'disabled'}>Next →</button>
         </div>
     `;
+    
+    const popupContent = initialContent + navButtons;
     
     // Determine size and font size based on count
     const count = markers.length;
@@ -347,10 +427,40 @@ function createClusterMarker(cluster, map) {
     
     clusterMarker.bindPopup(popupContent);
     
-    // Store original markers and location for reference
+    // Store original markers, location, crash properties, update function, and cluster ID
     clusterMarker._originalMarkers = markers;
     clusterMarker._lat = centerLat;
     clusterMarker._lng = centerLng;
+    clusterMarker._crashProps = crashProps;
+    clusterMarker._updatePopup = updatePopupContent;
+    clusterMarker._currentIndex = 0;
+    clusterMarker._clusterId = clusterId;
+    
+    // Add event listener for popup open to attach navigation buttons
+    clusterMarker.on('popupopen', function() {
+        setTimeout(() => {
+            const prevBtn = document.getElementById(`cluster-prev-${clusterId}`);
+            const nextBtn = document.getElementById(`cluster-next-${clusterId}`);
+            
+            if (prevBtn) {
+                prevBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (clusterMarker._currentIndex > 0) {
+                        updatePopupContent(clusterMarker, clusterMarker._currentIndex - 1);
+                    }
+                };
+            }
+            
+            if (nextBtn) {
+                nextBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (clusterMarker._currentIndex < crashProps.length - 1) {
+                        updatePopupContent(clusterMarker, clusterMarker._currentIndex + 1);
+                    }
+                };
+            }
+        }, 10);
+    });
     
     return clusterMarker;
 }
@@ -396,12 +506,13 @@ function createCrashMarker(props) {
     // Add popup
     marker.bindPopup(popupContent);
     
-    // Store year, severity data, and lat/lng with marker for filtering and clustering
+    // Store year, severity data, lat/lng, and original properties with marker
     marker._crashYear = year;
     marker._fatalities = fatalities;
     marker._injuries = injuries;
     marker._lat = lat;
     marker._lng = lon;
+    marker._crashProps = props; // Store original crash properties for cluster navigation
     
     return marker;
 }
@@ -453,7 +564,7 @@ function updateMarkersByYear(fitMap = true) {
     
     // Cluster markers that are close together (within 50 pixels at current zoom level)
     // Using pixel distance so clustering adapts to zoom level
-    const clusters = clusterMarkers(allMarkers, map, 10);
+    const clusters = clusterMarkers(allMarkers, map, 25);
     
     console.log(`Created ${clusters.length} clusters from ${allMarkers.length} markers`);
     let clusterCount = 0;
