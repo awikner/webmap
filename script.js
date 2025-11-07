@@ -113,6 +113,20 @@ function formatCrashDate(crashDateT) {
     }
 }
 
+// Determine marker color based on crash severity
+function getMarkerColor(fatalities, injuries) {
+    // Red for fatalities
+    if (fatalities && fatalities > 0) {
+        return '#FF0000'; // Red
+    }
+    // Orange for injuries
+    if (injuries && injuries > 0) {
+        return '#FF9800'; // Orange
+    }
+    // Yellow for default (no injuries or fatalities)
+    return '#FFEB3B'; // Yellow
+}
+
 // Load markers from GeoJSON file
 async function loadMarkersFromJSON() {
     try {
@@ -143,6 +157,9 @@ async function loadMarkersFromJSON() {
                     const weather = props.WEATHER || 'N/A';
                     const lighting = props.LIGHTING || 'N/A';
                     
+                    // Determine marker color based on severity
+                    const markerColor = getMarkerColor(fatalities, injuries);
+                    
                     // Create popup content with crash information
                     const popupContent = `
                         <div style="text-align: left; min-width: 200px;">
@@ -159,11 +176,11 @@ async function loadMarkersFromJSON() {
                         </div>
                     `;
                     
-                    // Create marker
+                    // Create marker with dynamic color
                     const marker = L.marker([lat, lon], {
                         icon: L.divIcon({
                             className: 'custom-marker',
-                            html: '<div style="background: #4CAF50; border: 3px solid white; border-radius: 50%; width: 20px; height: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.3);"></div>',
+                            html: `<div style="background: ${markerColor}; border: 3px solid white; border-radius: 50%; width: 20px; height: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.3);"></div>`,
                             iconSize: [20, 20],
                             iconAnchor: [10, 10]
                         })
