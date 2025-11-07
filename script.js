@@ -253,23 +253,53 @@ function updateMarkersByYear() {
     console.log(`Displaying ${markers.length} markers for years: ${selectedYears.join(', ')}`);
 }
 
-// Load markers from GeoJSON file
+// Load markers from multiple GeoJSON files (one per year)
 async function loadMarkersFromJSON() {
     try {
-        const response = await fetch('183rdCrashes2024.geojson');
-        const geojson = await response.json();
+        const fileNames = [
+            '183rdCrashes2021.geojson',
+            '183rdCrashes2022.geojson',
+            '183rdCrashes2023.geojson',
+            '183rdCrashes2024.geojson'
+        ];
         
-        // Store all crash data
-        allCrashData = geojson.features || [];
+        // Fetch all files in parallel
+        const fetchPromises = fileNames.map(fileName => 
+            fetch(fileName)
+                .then(response => {
+                    if (!response.ok) {
+                        console.warn(`File ${fileName} not found or failed to load`);
+                        return null;
+                    }
+                    return response.json();
+                })
+                .catch(error => {
+                    console.warn(`Error loading ${fileName}:`, error);
+                    return null;
+                })
+        );
+        
+        const geojsonResults = await Promise.all(fetchPromises);
+        
+        // Combine all features from all files
+        allCrashData = [];
+        geojsonResults.forEach((geojson, index) => {
+            if (geojson && geojson.features) {
+                allCrashData = allCrashData.concat(geojson.features);
+                console.log(`Loaded ${geojson.features.length} records from ${fileNames[index]}`);
+            }
+        });
         
         // Update markers based on selected years
         updateMarkersByYear();
         
-        console.log(`Loaded ${allCrashData.length} crash records from GeoJSON file`);
+        console.log(`Total: Loaded ${allCrashData.length} crash records from all GeoJSON files`);
     } catch (error) {
-        console.error('Error loading markers from GeoJSON:', error);
-        // Fallback to sample markers if GeoJSON fails to load
-        addSampleMarkers();
+        console.error('Error loading markers from GeoJSON files:', error);
+        // Fallback to sample markers if all files fail to load
+        if (allCrashData.length === 0) {
+            addSampleMarkers();
+        }
     }
 }
 
