@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Custom Interactive Map</title>
+    <title>Homewood Collision Map</title>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -16,12 +16,11 @@
 <body>
     <div class="container">
         <header>
-            <h1>Interactive Custom Map</h1>
-            <p>Powered by Leaflet.js - Ready for WordPress embedding</p>
+            <h1>Homewood Collision Map</h1>
         </header>
         
         <div class="year-filters">
-            <h3 style="color: white; margin-bottom: 10px; text-align: center;">Filter by Year</h3>
+            <h3 style="color: white; margin-bottom: 10px; text-align: center;">Filter Collisions by Year</h3>
             <div class="year-checkboxes">
                 <label class="year-checkbox-label">
                     <input type="checkbox" class="year-checkbox" data-year="2021" checked>
@@ -48,11 +47,13 @@
         
         <div id="map" class="map-container"></div>
         
+        <!-- Map Information panel - commented out for later debugging
         <div class="info-panel">
             <h3>Map Information</h3>
             <div id="coordinates">Click on the map to see coordinates</div>
             <div id="markerCount">Markers: 0</div>
         </div>
+        -->
     </div>
     
     <!-- Leaflet JavaScript -->

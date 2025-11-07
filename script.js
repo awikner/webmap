@@ -27,18 +27,24 @@ function initializeMap() {
         maxZoom: 19
     }).addTo(map);
     
-    // Add click event to show coordinates
+    // Add click event to show coordinates (if element exists)
     map.on('click', function(e) {
-        const lat = e.latlng.lat.toFixed(6);
-        const lng = e.latlng.lng.toFixed(6);
-        document.getElementById('coordinates').textContent = `Lat: ${lat}, Lng: ${lng}`;
+        const coordinatesEl = document.getElementById('coordinates');
+        if (coordinatesEl) {
+            const lat = e.latlng.lat.toFixed(6);
+            const lng = e.latlng.lng.toFixed(6);
+            coordinatesEl.textContent = `Lat: ${lat}, Lng: ${lng}`;
+        }
     });
     
-    // Add mouse move event to show coordinates in real-time
+    // Add mouse move event to show coordinates in real-time (if element exists)
     map.on('mousemove', function(e) {
-        const lat = e.latlng.lat.toFixed(6);
-        const lng = e.latlng.lng.toFixed(6);
-        document.getElementById('coordinates').textContent = `Lat: ${lat}, Lng: ${lng}`;
+        const coordinatesEl = document.getElementById('coordinates');
+        if (coordinatesEl) {
+            const lat = e.latlng.lat.toFixed(6);
+            const lng = e.latlng.lng.toFixed(6);
+            coordinatesEl.textContent = `Lat: ${lat}, Lng: ${lng}`;
+        }
     });
 }
 
@@ -311,9 +317,12 @@ async function loadMarkersFromJSON() {
     }
 }
 
-// Update marker count display
+// Update marker count display (if element exists)
 function updateMarkerCount() {
-    document.getElementById('markerCount').textContent = `Markers: ${markerCount}`;
+    const markerCountEl = document.getElementById('markerCount');
+    if (markerCountEl) {
+        markerCountEl.textContent = `Markers: ${markerCount}`;
+    }
 }
 
 // Toggle fullscreen mode
