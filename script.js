@@ -1,35 +1,39 @@
-// Global variables
-let map;
-let markers = [];
-let markerCount = 0;
-let allCrashData = []; // Store all crash data
-let selectedYears = [2021, 2022, 2023, 2024]; // Default: all years selected
-let isUpdatingMarkers = false; // Flag to prevent recursive updates during marker updates
+// Wrap everything in IIFE to prevent variable conflicts with WordPress
+(function() {
+    'use strict';
+    
+    // Global variables (scoped to this IIFE)
+    let crashMap; // Renamed from 'map' to avoid conflicts
+    let markers = [];
+    let markerCount = 0;
+    let allCrashData = []; // Store all crash data
+    let selectedYears = [2021, 2022, 2023, 2024]; // Default: all years selected
+    let isUpdatingMarkers = false; // Flag to prevent recursive updates during marker updates
 
-// Default map center
-const defaultCenter = [41.557237, -87.665491];
-const defaultZoom = 14;
+    // Default map center
+    const defaultCenter = [41.557237, -87.665491];
+    const defaultZoom = 14;
 
-// Initialize the map when the page loads
-document.addEventListener('DOMContentLoaded', function() {
-    initializeMap();
-    setupEventListeners();
-    loadMarkersFromJSON();
-});
+    // Initialize the map when the page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeMap();
+        setupEventListeners();
+        loadMarkersFromJSON();
+    });
 
 // Initialize the Leaflet map
 function initializeMap() {
     // Create the map
-    map = L.map('map').setView(defaultCenter, defaultZoom);
+    crashMap = L.map('map').setView(defaultCenter, defaultZoom);
     
     // Add OpenStreetMap tiles
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19
-    }).addTo(map);
+    }).addTo(crashMap);
     
     // Add click event to show coordinates (if element exists)
-    map.on('click', function(e) {
+    crashMap.on('click', function(e) {
         const coordinatesEl = document.getElementById('coordinates');
         if (coordinatesEl) {
         const lat = e.latlng.lat.toFixed(6);
@@ -39,7 +43,7 @@ function initializeMap() {
     });
     
     // Add mouse move event to show coordinates in real-time (if element exists)
-    map.on('mousemove', function(e) {
+    crashMap.on('mousemove', function(e) {
         const coordinatesEl = document.getElementById('coordinates');
         if (coordinatesEl) {
         const lat = e.latlng.lat.toFixed(6);
@@ -49,7 +53,7 @@ function initializeMap() {
     });
     
     // Recluster markers when zoom level changes (without resetting zoom)
-    map.on('zoomend', function() {
+    crashMap.on('zoomend', function() {
         if (allCrashData.length > 0 && !isUpdatingMarkers) {
             updateMarkersByYear(false); // Don't fit map when zooming
         }
@@ -111,7 +115,7 @@ function addMarker(lat, lng, title = 'Marker', description = '', category = 'def
         </div>
     `);
     
-    marker.addTo(map);
+    marker.addTo(crashMap);
     markers.push(marker);
     markerCount++;
     updateMarkerCount();
@@ -210,7 +214,7 @@ function getDistanceInMeters(lat1, lng1, lat2, lng2) {
 }
 
 // Calculate pixel distance between two markers at current zoom level
-function getPixelDistance(marker1, marker2, map) {
+function getPixelDistance(marker1, marker2, mapInstance) {
     try {
         // Use stored lat/lng or get from marker
         const lat1 = marker1._lat || (marker1.getLatLng ? marker1.getLatLng().lat : marker1.lat);
@@ -218,8 +222,8 @@ function getPixelDistance(marker1, marker2, map) {
         const lat2 = marker2._lat || (marker2.getLatLng ? marker2.getLatLng().lat : marker2.lat);
         const lng2 = marker2._lng || (marker2.getLatLng ? marker2.getLatLng().lng : marker2.lng);
         
-        const point1 = map.latLngToContainerPoint(L.latLng(lat1, lng1));
-        const point2 = map.latLngToContainerPoint(L.latLng(lat2, lng2));
+        const point1 = mapInstance.latLngToContainerPoint(L.latLng(lat1, lng1));
+        const point2 = mapInstance.latLngToContainerPoint(L.latLng(lat2, lng2));
         return Math.sqrt(Math.pow(point2.x - point1.x, 2) + Math.pow(point2.y - point1.y, 2));
     } catch (e) {
         console.warn('Error calculating pixel distance:', e);
@@ -229,8 +233,8 @@ function getPixelDistance(marker1, marker2, map) {
 }
 
 // Cluster markers that are close together using pixel distance at current zoom level
-function clusterMarkers(markerList, map, pixelDistance = 50) {
-    if (!markerList || markerList.length === 0 || !map) return [];
+function clusterMarkers(markerList, mapInstance, pixelDistance = 50) {
+    if (!markerList || markerList.length === 0 || !mapInstance) return [];
     
     const clusters = [];
     const processed = new Set();
@@ -266,7 +270,7 @@ function clusterMarkers(markerList, map, pixelDistance = 50) {
             
             try {
                 // Calculate pixel distance at current zoom level
-                const distance = getPixelDistance(marker, otherMarker, map);
+                const distance = getPixelDistance(marker, otherMarker, mapInstance);
                 
                 if (distance <= pixelDistance) {
                     cluster.push(otherMarker);
@@ -345,7 +349,7 @@ function createCrashPopupContent(props, index, total) {
 }
 
 // Create a cluster marker with count and severity-based color
-function createClusterMarker(cluster, map) {
+function createClusterMarker(cluster, mapInstance) {
     const { markers, crashData } = cluster;
     
     // Calculate center point
@@ -525,12 +529,12 @@ function updateMarkersByYear(fitMap = true) {
     isUpdatingMarkers = true;
     
     // Store current view state to restore after updating markers
-    const currentCenter = map.getCenter();
-    const currentZoom = map.getZoom();
+    const currentCenter = crashMap.getCenter();
+    const currentZoom = crashMap.getZoom();
         
         // Clear existing markers
         markers.forEach(marker => {
-            map.removeLayer(marker);
+            crashMap.removeLayer(marker);
         });
         markers = [];
         markerCount = 0;
@@ -560,7 +564,7 @@ function updateMarkersByYear(fitMap = true) {
     
     // Cluster markers that are close together (within 50 pixels at current zoom level)
     // Using pixel distance so clustering adapts to zoom level
-    const clusters = clusterMarkers(allMarkers, map, 25);
+    const clusters = clusterMarkers(allMarkers, crashMap, 25);
     
     console.log(`Created ${clusters.length} clusters from ${allMarkers.length} markers`);
     let clusterCount = 0;
@@ -571,8 +575,8 @@ function updateMarkersByYear(fitMap = true) {
         if (cluster.markers.length > 1) {
             // Create cluster marker for multiple markers
             clusterCount++;
-            const clusterMarker = createClusterMarker(cluster, map);
-            clusterMarker.addTo(map);
+            const clusterMarker = createClusterMarker(cluster, crashMap);
+            clusterMarker.addTo(crashMap);
             markers.push(clusterMarker);
             markerCount++;
             console.log(`Created cluster with ${cluster.markers.length} markers at lat: ${clusterMarker._lat || 'N/A'}, lng: ${clusterMarker._lng || 'N/A'}`);
@@ -580,7 +584,7 @@ function updateMarkersByYear(fitMap = true) {
             // Add individual marker
             individualCount++;
             const marker = cluster.markers[0];
-            marker.addTo(map);
+            marker.addTo(crashMap);
             markers.push(marker);
             markerCount++;
         }
@@ -597,7 +601,7 @@ function updateMarkersByYear(fitMap = true) {
         fitMapToMarkers();
     } else {
         // Restore the previous view state to prevent zoom reset
-        map.setView(currentCenter, currentZoom, { animate: false });
+        crashMap.setView(currentCenter, currentZoom, { animate: false });
     }
     
     updateMarkerCount();
@@ -699,7 +703,7 @@ function toggleFullscreen() {
     
     // Trigger map resize after fullscreen toggle
     setTimeout(() => {
-        map.invalidateSize();
+        crashMap.invalidateSize();
     }, 100);
 }
 
@@ -718,14 +722,14 @@ function addSampleMarkers() {
 
 // Utility function to get current map bounds
 function getMapBounds() {
-    return map.getBounds();
+    return crashMap.getBounds();
 }
 
 // Utility function to fit map to all markers
 function fitMapToMarkers() {
     if (markers.length > 0) {
         const group = new L.featureGroup(markers);
-        map.fitBounds(group.getBounds().pad(0.1));
+        crashMap.fitBounds(group.getBounds().pad(0.1));
     }
 }
 
@@ -735,14 +739,14 @@ window.LeafletMapAPI = {
     loadMarkersFromJSON: loadMarkersFromJSON,
     getMapBounds: getMapBounds,
     fitMapToMarkers: fitMapToMarkers,
-    getMap: () => map
+    getMap: () => crashMap
 };
 
 // Handle window resize
 window.addEventListener('resize', function() {
-    if (map) {
+    if (crashMap) {
         setTimeout(() => {
-            map.invalidateSize();
+            crashMap.invalidateSize();
         }, 100);
     }
 });
@@ -750,3 +754,5 @@ window.addEventListener('resize', function() {
 // Console log for debugging
 console.log('Leaflet Map initialized successfully!');
 console.log('Available API methods:', Object.keys(window.LeafletMapAPI));
+
+})(); // End of IIFE
