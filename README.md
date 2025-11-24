@@ -36,28 +36,46 @@ webmap/
 
 ### WordPress Embedding
 
-1. Upload **both** `wordpress-embed.html` and `markers.json` (plus any image assets referenced in your popup templates) to a publicly accessible folder on your WordPress site, for example `https://yoursite.com/wp-content/uploads/webmap/`. Keep the files together—the embed HTML assumes `markers.json` sits beside it and will fall back to the bundled sample markers if it cannot find the file.
-2. If you need to host `markers.json` elsewhere, edit the `fetch('markers.json')` line inside `wordpress-embed.html` to use the absolute URL to your data file.
-3. Add the map to a WordPress page or post:
+The WordPress embed version has **exactly the same look and functionality** as the main GitHub Pages site, including year filters, crash data visualization, clustering, and fullscreen mode.
+
+1. Upload the following files to a publicly accessible folder on your WordPress site (e.g., `https://yoursite.com/wp-content/uploads/webmap/`):
+   - `wordpress-embed.html` - The embed HTML file
+   - `styles.css` - Stylesheet (required)
+   - `script.js` - JavaScript functionality (required)
+   - `183rdCrashes2021-2024.geojson` - Crash data file (required)
+   
+   **Important**: All files must be in the same directory. The embed HTML references these files using relative paths.
+
+2. Add the map to a WordPress page or post:
    - **Gutenberg/Block Editor**: Insert a *Custom HTML* block and paste the iframe snippet below.
    - **Classic Editor**: Switch to the *Text* tab and paste the same iframe markup.
-4. Use URL parameters to customize the initial view (all optional):
-   - `lat` – latitude in decimal degrees (default `37.7749`)
-   - `lng` – longitude in decimal degrees (default `-122.4194`)
-   - `zoom` – Leaflet zoom level (default `13`)
-5. Example iframe markup:
+
+3. Example iframe markup:
    ```html
    <iframe
-       src="https://yoursite.com/wp-content/uploads/webmap/wordpress-embed.html?lat=41.5572&lng=-87.6655&zoom=14"
+       src="https://yoursite.com/wp-content/uploads/webmap/wordpress-embed.html"
        width="100%"
-       height="420"
+       height="800"
        style="border:0; border-radius:8px;"
        allowfullscreen
        loading="lazy">
    </iframe>
    ```
-6. The embed exposes a lightweight API via `window.WPLeafletMap` (available to other scripts on the page) with `addMarker`, `loadMarkersFromJSON`, `fitMapToMarkers`, and `getMap()` helpers if you need to interact with the map from custom WordPress code or a shortcode.
-7. If the iframe does not render, confirm that your security plugins allow iframes from your own domain and that the uploaded files inherit the correct MIME types (WordPress typically handles this automatically).
+   
+   **Note**: Adjust the `height` attribute (e.g., `800px` or `100vh`) based on your needs. The map includes a header, year filters, and controls, so ensure adequate height.
+
+4. The embed exposes an API via `window.LeafletMapAPI` (available to other scripts on the page) with methods including:
+   - `addMarker(lat, lng, title, description, category)` - Add a custom marker
+   - `loadMarkersFromJSON()` - Reload crash data
+   - `fitMapToMarkers()` - Fit map to show all markers
+   - `getMapBounds()` - Get current map bounds
+   - `getMap()` - Get the Leaflet map instance
+
+5. If the iframe does not render:
+   - Confirm that your security plugins allow iframes from your own domain
+   - Verify that all required files (HTML, CSS, JS, GeoJSON) are uploaded and accessible
+   - Check browser console for JavaScript errors
+   - Ensure WordPress allows iframe embedding
 
 ## Customization
 
